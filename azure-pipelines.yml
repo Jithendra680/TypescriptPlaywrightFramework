@@ -1,0 +1,66 @@
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  NODE_VERSION: '20.x'
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Install Node.js'
+    inputs:
+      versionSpec: '$(NODE_VERSION)'
+
+  - script: npm ci
+    displayName: 'Install project dependencies'
+
+  - script: npx playwright install --with-deps chromium
+    displayName: 'Install Playwright browser'
+
+  - script: npm run typecheck
+    displayName: 'TypeScript type checking'
+
+  - script: npx playwright test
+    displayName: 'Execute Playwright tests'
+    env:
+      CI: 'true'
+      BASE_URL: $(BASE_URL)
+      TEST_USER_EMAIL: $(TEST_USER_EMAIL)
+      TEST_USER_PASSWORD: $(TEST_USER_PASSWORD)
+
+  - task: PublishTestResults@2
+    displayName: 'Publish JUnit results'
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: 'test-results/junit-results.xml'
+      failTaskOnFailedTests: true
+      testRunTitle: 'Playwright TypeScript Tests'
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish HTML report'
+    condition: succeededOrFailed()
+    inputs:
+      targetPath: 'playwright-report'
+      artifact: 'playwright-html-report'
+      publishLocation: 'pipeline'
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish test evidence'
+    condition: succeededOrFailed()
+    inputs:
+      targetPath: 'test-results'
+      artifact: 'playwright-test-results'
+      publishLocation: 'pipeline'
